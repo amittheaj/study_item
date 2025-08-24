@@ -1,175 +1,103 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JPMC Q&A Bot</title>
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+import streamlit as st
+import requests
+import json
+
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="JPMC Q&A Bot",
+    page_icon="🏦",
+    layout="centered"
+)
+
+# --- UI Styling ---
+st.markdown("""
     <style>
-        /* Custom styles for the app */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8; /* Light blue-gray background */
+        .stApp {
+            background-color: #f0f4f8;
         }
-        /* JPMC-inspired color scheme */
-        .jpmc-blue {
-            background-color: #005ea6;
+        .st-emotion-cache-16txtl3 {
+            padding: 2rem 1rem 1rem;
         }
-        .jpmc-blue-text {
-            color: #005ea6;
-        }
-        .jpmc-gray {
-            background-color: #5a5a5a;
-        }
-        /* Custom styles for the response box */
-        #response-box {
-            white-space: pre-wrap; /* Preserves formatting and line breaks */
-            word-wrap: break-word; /* Breaks long words to prevent overflow */
-        }
-        /* Simple loading spinner animation */
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border-left-color: #005ea6;
-            animation: spin 1s ease infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        h1 {
+            color: #005ea6; /* JPMC Blue */
         }
     </style>
-</head>
-<body class="flex items-center justify-center min-h-screen">
-    <!-- Main container for the application -->
-    <div class="w-full max-w-2xl mx-auto p-6 md:p-8 bg-white rounded-2xl shadow-2xl">
-        <!-- Header Section -->
-        <div class="text-center mb-6">
-            <h1 class="text-3xl md:text-4xl font-bold jpmc-blue-text">JPMC Q&A Bot</h1>
-            <p class="text-gray-500 mt-2">Your specialized assistant for all things JPMorgan Chase</p>
-        </div>
+""", unsafe_allow_html=True)
 
-        <!-- Input Section -->
-        <div class="flex flex-col sm:flex-row gap-3 mb-4">
-            <input type="text" id="question-input" placeholder="e.g., When was JPMorgan Chase founded?" class="flex-grow p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition">
-            <button id="submit-btn" class="jpmc-blue hover:bg-blue-800 text-white font-bold py-3 px-6 rounded-lg transition duration-300 shadow-md">
-                Ask Question
-            </button>
-        </div>
 
-        <!-- Response Section -->
-        <div class="mt-6 p-5 bg-gray-50 rounded-lg border border-gray-200 min-h-[150px]">
-            <h2 class="text-lg font-semibold text-gray-700 mb-2">Answer:</h2>
-            <!-- Loading spinner, hidden by default -->
-            <div id="loader" class="hidden flex justify-center items-center h-24">
-                <div class="spinner"></div>
-            </div>
-            <!-- Response content will be displayed here -->
-            <div id="response-box" class="text-gray-800">
-                <p class="text-gray-400">Your answer will appear here...</p>
-            </div>
-        </div>
-    </div>
+# --- Main Application Logic ---
 
-    <script>
-        // DOM element references
-        const submitButton = document.getElementById('submit-btn');
-        const questionInput = document.getElementById('question-input');
-        const responseBox = document.getElementById('response-box');
-        const loader = document.getElementById('loader');
+st.title("JPMC Q&A Bot")
+st.caption("Your specialized assistant for all things JPMorgan Chase")
 
-        // Event listener for the submit button
-        submitButton.addEventListener('click', getAnswer);
+# --- Function to call the Gemini API ---
+def get_gemini_answer(question):
+    """
+    Fetches an answer from the Gemini API based on the user's question.
+    """
+    # System prompt to constrain the LLM
+    system_prompt = """You are a specialized Q&A assistant for JPMorgan Chase (JPMC). 
+    Your sole purpose is to answer questions related to JPMC's business, history, financials, and operations. 
+    If a user asks a question that is NOT about JPMC, you MUST respond with: 
+    'I am a JPMC specialist and can only answer questions about JPMorgan Chase. Please ask me something related to the company.' 
+    Do not answer any questions about other topics, people, or companies."""
+    
+    full_prompt = f"{system_prompt}\n\nUser's question: \"{question}\""
+
+    # In Streamlit, API keys should be handled via secrets management, but we'll leave it empty here
+    # as the execution environment will handle it.
+    api_key = "" 
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+
+    payload = {
+        "contents": [{
+            "parts": [{"text": full_prompt}]
+        }]
+    }
+    headers = {'Content-Type': 'application/json'}
+
+    try:
+        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()  # Raises an exception for bad status codes
+        result = response.json()
+
+        if "candidates" in result and result["candidates"]:
+            content_part = result["candidates"][0].get("content", {}).get("parts", [{}])[0]
+            return content_part.get("text", "Sorry, I couldn't find an answer.")
+        else:
+            return "Error: Invalid response structure from the API."
+
+    except requests.exceptions.RequestException as e:
+        return f"An error occurred: {e}"
+    except Exception as e:
+        return f"An unexpected error occurred: {e}"
+
+
+# --- User Input and Response Display ---
+
+# Use a form to group the input and button
+with st.form(key='qa_form'):
+    user_question = st.text_input(
+        "Ask a question about JPMC:", 
+        placeholder="e.g., When was JPMorgan Chase founded?",
+        key="question_input"
+    )
+    submit_button = st.form_submit_button(label='Ask Question')
+
+# Process the question when the form is submitted
+if submit_button and user_question:
+    with st.spinner('Fetching your answer...'):
+        answer = get_gemini_answer(user_question)
         
-        // Event listener for pressing "Enter" in the input field
-        questionInput.addEventListener('keyup', (event) => {
-            if (event.key === 'Enter') {
-                getAnswer();
-            }
-        });
-
-        /**
-         * Fetches an answer from the Gemini API based on the user's question.
-         */
-        async function getAnswer() {
-            const userQuestion = questionInput.value.trim();
-            if (!userQuestion) {
-                responseBox.innerHTML = '<p class="text-red-500">Please enter a question.</p>';
-                return;
-            }
-
-            // Show loader and disable input/button
-            loader.classList.remove('hidden');
-            responseBox.innerHTML = '';
-            submitButton.disabled = true;
-            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
-            questionInput.disabled = true;
-
-            // System prompt to constrain the LLM to only answer JPMC-related questions
-            const systemPrompt = `You are a specialized Q&A assistant for JPMorgan Chase (JPMC). Your sole purpose is to answer questions related to JPMC's business, history, financials, and operations. If a user asks a question that is NOT about JPMC, you MUST respond with: 'I am a JPMC specialist and can only answer questions about JPMorgan Chase. Please ask me something related to the company.' Do not answer any questions about other topics, people, or companies.`;
-            
-            const fullPrompt = `${systemPrompt}\n\nUser's question: "${userQuestion}"`;
-
-            // Function to make the API call with exponential backoff
-            const fetchWithBackoff = async (retries = 3, delay = 1000) => {
-                try {
-                    const apiKey = ""; // API key is handled by the environment
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-                    
-                    const payload = {
-                        contents: [{
-                            parts: [{ text: fullPrompt }]
-                        }]
-                    };
-
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const result = await response.json();
-                    
-                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
-                        return result.candidates[0].content.parts[0].text;
-                    } else {
-                        throw new Error("Invalid response structure from API.");
-                    }
-
-                } catch (error) {
-                    if (retries > 0) {
-                        await new Promise(res => setTimeout(res, delay));
-                        return fetchWithBackoff(retries - 1, delay * 2);
-                    } else {
-                        throw error;
-                    }
-                }
-            };
-
-            try {
-                const answer = await fetchWithBackoff();
-                responseBox.textContent = answer;
-            } catch (error) {
-                console.error('Error fetching answer:', error);
-                responseBox.innerHTML = '<p class="text-red-500">Sorry, something went wrong while fetching the answer. Please try again.</p>';
-            } finally {
-                // Hide loader and re-enable input/button
-                loader.classList.add('hidden');
-                submitButton.disabled = false;
-                submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                questionInput.disabled = false;
-            }
-        }
-    </script>
-</body>
-</html>
+        # Display the answer in a styled box
+        st.markdown(
+            f"""
+            <div style="border: 1px solid #e0e0e0; border-radius: 10px; padding: 15px; background-color: #fafafa; margin-top: 20px;">
+                <h3 style="color: #333; margin-bottom: 10px;">Answer:</h3>
+                <p style="color: #555;">{answer}</p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+elif submit_button and not user_question:
+    st.warning("Please enter a question.")
