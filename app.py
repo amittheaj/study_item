@@ -47,7 +47,7 @@ def get_gemini_answer(question):
     # In Streamlit, API keys should be handled via secrets management, but we'll leave it empty here
     # as the execution environment will handle it.
     api_key = "" 
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=AIzaSyCNQtgHZh6S9loCkFgtFcbzbJ1pD2ADqHo"
 
     payload = {
         "contents": [{
@@ -101,3 +101,4 @@ if submit_button and user_question:
         )
 elif submit_button and not user_question:
     st.warning("Please enter a question.")
+
